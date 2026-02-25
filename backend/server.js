@@ -23,6 +23,15 @@ app.get('/api/weather', async (req, res) => {
     console.log('Fetching weather for:', city);
     console.log('API Key:', process.env.API_KEY ? 'Present' : 'Missing');
     
+    // Check if API key is the placeholder
+    if (process.env.API_KEY === 'YOUR_API_KEY_HERE') {
+      return res.status(400).json({
+        error: 'API key not configured',
+        message: 'Please get a free API key from https://home.openweathermap.org/users/sign_up and update backend/.env file',
+        setupRequired: true
+      });
+    }
+    
     try {
       const weatherResponse = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${process.env.API_KEY}&units=metric`);
       
@@ -58,15 +67,26 @@ app.get('/api/weather', async (req, res) => {
         });
       });
       
+      console.log('✅ Real API data fetched successfully for', city);
+      
       res.json({
         current: currentWeather,
-        forecast: forecast
+        forecast: forecast,
+        source: 'real_api'
       });
       
     } catch (apiError) {
       console.error('OpenWeatherMap API Error:', apiError.response?.status, apiError.response?.data);
       
-      // Fallback to mock data if API fails - make it more realistic based on city
+      if (apiError.response?.status === 401) {
+        return res.status(400).json({
+          error: 'Invalid API key',
+          message: 'Your API key is invalid or not activated. Please check your key and wait 10-30 minutes after creation.',
+          apiKeyIssue: true
+        });
+      }
+      
+      // Fallback to mock data if API fails
       const getMockData = (cityName) => {
         const mockDataMap = {
           'London': {
@@ -101,17 +121,14 @@ app.get('/api/weather', async (req, res) => {
           }
         };
         
-        // Default data if city not found
         const defaultData = {
           temp: 20, condition: 'Partly Cloudy', humidity: 65, windSpeed: 15, icon: 'Clouds'
         };
 
-        // Build a case-insensitive lookup map
         const lookup = Object.fromEntries(Object.keys(mockDataMap).map(k => [k.toLowerCase(), mockDataMap[k]]));
         const cityKey = (cityName || '').toLowerCase();
         const cityData = lookup[cityKey] || defaultData;
         
-        // Determine country code in a case-insensitive way
         const lower = cityKey;
         const country = lower === 'london' ? 'GB' : lower === 'new york' ? 'US' : lower === 'tokyo' ? 'JP' : (lower === 'mumbai' || lower === 'ooty' || lower === 'coimbatore' || lower === 'bengaluru' || lower === 'bangalore') ? 'IN' : lower === 'paris' ? 'FR' : lower === 'sydney' ? 'AU' : 'XX';
 
@@ -131,11 +148,13 @@ app.get('/api/weather', async (req, res) => {
             { day: 'Wednesday', high: cityData.temp + 2, low: cityData.temp - 4, condition: cityData.icon === 'Rain' ? 'Rainy' : 'Cloudy', icon: cityData.icon === 'Rain' ? 'Rain' : 'Clouds' },
             { day: 'Thursday', high: cityData.temp + 4, low: cityData.temp - 3, condition: 'Partly Cloudy', icon: 'Clouds' },
             { day: 'Friday', high: cityData.temp + 6, low: cityData.temp - 1, condition: 'Sunny', icon: 'Clear' }
-          ]
+          ],
+          source: 'mock_data'
         };
       };
       
       const mockData = getMockData(city);
+      console.log('⚠️ Using mock data for', city);
       res.json(mockData);
     }
     

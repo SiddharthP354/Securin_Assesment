@@ -20,17 +20,24 @@ export default function dashboard() {
       const response = await fetch(`http://localhost:3000/api/weather?city=${city}`)
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorData = await response.json()
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
       }
       
       const data = await response.json()
       setWeatherData(data)
       setError(null)
       setSearchCity(city)
-      console.log('Weather data received:', data)
+      
+      // Log data source for debugging
+      if (data.source === 'real_api') {
+        console.log('✅ Real weather data for', city)
+      } else {
+        console.log('⚠️ Mock weather data for', city)
+      }
     } catch (error) {
       console.error('Error fetching weather data:', error)
-      setError('Failed to fetch weather data. Please try again later.')
+      setError(error.message)
     } finally {
       setLoading(false)
     }
